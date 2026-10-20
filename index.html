@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="TubeCraft 3D — проектирование конструкций из профильной трубы, раскрой, вес и смета.">
+<title>TubeCraft 3D</title>
+<style>
+:root{--bg:#0b1020;--panel:#151d30;--panel2:#1c2740;--text:#edf2ff;--muted:#9eabc6;--line:#2c3854;--accent:#56c5f5;--accent2:#8ce0bb;--danger:#ff8e8e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{padding:18px 16px 12px;background:linear-gradient(135deg,#172440,#0b1020);position:sticky;top:0;z-index:5;border-bottom:1px solid var(--line)}
+.brand{font-size:23px;font-weight:800;letter-spacing:.2px}.brand span{color:var(--accent)}.sub{color:var(--muted);font-size:12px;margin-top:4px}
+nav{display:flex;gap:8px;padding:10px 12px;overflow:auto;background:#0b1020;position:sticky;top:76px;z-index:4}
+nav button,.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 13px;border-radius:12px;font-weight:650;white-space:nowrap}
+nav button.active,.btn.primary{background:var(--accent);border-color:var(--accent);color:#07101d}
+main{padding:12px;max-width:1050px;margin:auto}.view{display:none}.view.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+h2{font-size:18px;margin:0 0 12px}h3{font-size:15px;margin:14px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{display:flex;flex-direction:column;gap:5px;min-width:0}.field label{color:var(--muted);font-size:12px}
+input,select{width:100%;min-width:0;background:#0c1426;color:var(--text);border:1px solid #35425f;border-radius:10px;padding:11px;font-size:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.btn{cursor:pointer;font-size:14px}.btn.small{padding:7px 9px;font-size:12px}.btn.danger{color:var(--danger)}
+#scene{height:320px;border-radius:12px;background:radial-gradient(ellipse at center,#202e4a,#090e19);overflow:hidden;position:relative;touch-action:pan-y}
+#scene canvas{display:block;width:100%;height:100%}.hint{color:var(--muted);font-size:12px;line-height:1.45;margin-top:8px}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.kpi{background:#0d1528;padding:12px;border-radius:12px;border:1px solid var(--line)}.kpi .v{font-size:22px;font-weight:800;color:var(--accent2)}.kpi .k{font-size:12px;color:var(--muted);margin-top:3px}
+.part{padding:10px 0;border-bottom:1px solid var(--line)}.part:last-child{border:0}.parthead{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;margin-bottom:8px}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted)}
+.bar{height:12px;background:#0a1120;border-radius:7px;overflow:hidden;display:flex;margin:6px 0 12px}.cut{height:100%;border-right:2px solid #0a1120;background:var(--accent)}
+footer{padding:20px 14px 30px;text-align:center;color:var(--muted);font-size:11px}
+@media(min-width:760px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}#scene{height:430px}.kpis{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="brand">TubeCraft <span>3D</span></div><div class="sub">Конструирование из профильной трубы · веб-версия</div></header>
+<nav>
+<button class="active" data-tab="model">3D-модель</button><button data-tab="parts">Детали</button><button data-tab="cut">Раскрой</button><button data-tab="estimate">Смета / PDF</button>
+</nav>
+<main>
+<section class="view active" id="model">
+<div class="card"><h2>Быстрый старт</h2><div class="row">
+<select id="preset" aria-label="Шаблон"><option value="frame">Каркас / рама</option><option value="gate">Ворота</option><option value="table">Стол</option><option value="rack">Стеллаж</option><option value="ladder">Лестница</option></select>
+<button class="btn primary" id="loadPreset">Загрузить шаблон</button>
+</div><p class="hint">Поверните модель пальцем, масштабируйте двумя пальцами. Трубы редактируются во вкладке «Детали».</p></div>
+<div class="card"><div id="scene" aria-label="3D preview"></div><div class="hint">3D-просмотр интерактивный. Размеры вводятся в миллиметрах; отображение условное, не заменяет инженерную проверку.</div></div>
+<div class="card"><h2>Итоги проекта</h2><div class="kpis" id="kpis"></div></div>
+</section>
+<section class="view" id="parts">
+<div class="card"><h2>Добавить деталь</h2>
+<div class="grid">
+<div class="field"><label>Название</label><input id="newName" value="Труба" maxlength="50"></div>
+<div class="field"><label>Профиль, ширина (мм)</label><input id="newW" type="number" min="10" max="300" value="40"></div>
+<div class="field"><label>Высота (мм)</label><input id="newH" type="number" min="10" max="300" value="40"></div>
+<div class="field"><label>Толщина стенки (мм)</label><input id="newT" type="number" min="0.5" max="20" step=".5" value="2"></div>
+<div class="field"><label>X1 (мм)</label><input id="newX1" type="number" value="0"></div><div class="field"><label>Y1 (мм)</label><input id="newY1" type="number" value="0"></div><div class="field"><label>Z1 (мм)</label><input id="newZ1" type="number" value="0"></div>
+<div class="field"><label>X2 (мм)</label><input id="newX2" type="number" value="1000"></div><div class="field"><label>Y2 (мм)</label><input id="newY2" type="number" value="0"></div><div class="field"><label>Z2 (мм)</label><input id="newZ2" type="number" value="0"></div>
+</div><div style="margin-top:12px" class="row"><button class="btn primary" id="addPart">Добавить трубу</button><button class="btn" id="resetParts">Очистить проект</button></div></div>
+<div class="card"><h2>Список деталей</h2><div id="partList"></div></div>
+</section>
+<section class="view" id="cut">
+<div class="card"><h2>Карта раскроя</h2><div class="grid">
+<div class="field"><label>Длина хлыста (мм)</label><input id="stock" type="number" min="100" value="6000"></div>
+<div class="field"><label>Ширина реза / пропил (мм)</label><input id="kerf" type="number" min="0" value="3"></div>
+</div><div class="row" style="margin-top:12px"><button class="btn primary" id="calcCut">Рассчитать раскрой</button></div><p class="hint">Используется эвристика размещения длинных деталей первыми. Это полезная предварительная схема, но не гарантированно оптимальный раскрой.</p><div id="cutResults"></div></div>
+</section>
+<section class="view" id="estimate">
+<div class="card"><h2>Вес и стоимость</h2><div class="grid">
+<div class="field"><label>Цена стали за кг</label><input id="price" type="number" min="0" step=".01" value="2.5"></div>
+<div class="field"><label>Плотность (кг/м³)</label><input id="density" type="number" min="1000" value="7850"></div>
+<div class="field"><label>Запас материала (%)</label><input id="waste" type="number" min="0" max="100" value="10"></div>
+</div><div id="estimateSummary" style="margin-top:14px"></div></div>
+<div class="card"><h2>Экспорт</h2><div class="row"><button class="btn primary" id="pdf">Скачать PDF-спецификацию</button><button class="btn" id="csv">Экспорт CSV</button></div><p class="hint">PDF содержит список деталей, длины, профиль, расчётный вес, стоимость и схематические проекции. Для точных производственных чертежей проверьте размеры и соединения отдельно.</p></div>
+</section>
+</main><footer>TubeCraft 3D · Предварительные расчёты. Учитывайте соединения, сварные швы, радиусы углов и отходы при реальном изготовлении.</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let parts=[], nextId=1, scene, camera, renderer, group, drag=false, lastX=0,lastY=0, rotX=-.35,rotY=.55, zoom=1, pinchStart=0, baseZoom=1;
+const num=id=>Number($(id).value)||0;
+function makePart(name,w,h,t,a,b){return {id:nextId++,name,w,h,t,x1:a[0],y1:a[1],z1:a[2],x2:b[0],y2:b[1],z2:b[2]}}
+function length(p){return Math.hypot(p.x2-p.x1,p.y2-p.y1,p.z2-p.z1)}
+function kgm(p){return ((p.w*p.h-Math.max(0,p.w-2*p.t)*Math.max(0,p.h-2*p.t))*1e-6)*num('density')}
+function weight(p){return kgm(p)*length(p)/1000}
+function money(n){return new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n)}
+function seed(type){
+ nextId=1; const p=[];
+ const add=(n,w,h,t,a,b)=>p.push(makePart(n,w,h,t,a,b));
+ if(type==='frame'){[[0,0,0,1200,0,0],[0,800,0,1200,800,0],[0,0,0,0,800,0],[1200,0,0,1200,800,0],[0,0,0,0,0,700],[1200,0,0,1200,0,700],[0,800,0,0,800,700],[1200,800,0,1200,800,700],[0,0,700,1200,0,700],[0,800,700,1200,800,700]].forEach((v,i)=>add('Рама '+(i+1),40,40,2,[v[0],v[1],v[2]],[v[3],v[4],v[5]]))}
+ if(type==='gate'){[[0,0,0,1500,0,0],[0,0,0,0,1800,0],[1500,0,0,1500,1800,0],[0,1800,0,1500,1800,0],[750,0,0,750,1800,0],[0,0,0,1500,1800,0]].forEach((v,i)=>add('Ворота '+(i+1),40,40,2,[v[0],v[1],v[2]],[v[3],v[4],v[5]]))}
+ if(type==='table'){[[0,0,0,1200,0,0],[0,600,0,1200,600,0],[0,0,0,0,600,0],[1200,0,0,1200,600,0],[80,80,0,80,80,720],[1120,80,0,1120,80,720],[80,520,0,80,520,720],[1120,520,0,1120,520,720]].forEach((v,i)=>add('Стол '+(i+1),40,40,2,[v[0],v[1],v[2]],[v[3],v[4],v[5]]))}
+ if(type==='rack'){[[0,0,0,0,1800,0],[1000,0,0,1000,1800,0],[0,0,0,1000,0,0],[0,0,0,1000,0,0],[0,900,0,1000,900,0],[0,1800,0,1000,1800,0],[0,0,0,0,0,500],[1000,0,0,1000,0,500],[0,900,0,0,900,500],[1000,900,0,1000,900,500],[0,1800,0,0,1800,500],[1000,1800,0,1000,1800,500]].forEach((v,i)=>add('Стеллаж '+(i+1),30,30,2,[v[0],v[1],v[2]],[v[3],v[4],v[5]]))}
+ if(type==='ladder'){[[0,0,0,0,2200,0],[500,0,0,500,2200,0],[0,250,0,500,250,0],[0,550,0,500,550,0],[0,850,0,500,850,0],[0,1150,0,500,1150,0],[0,1450,0,500,1450,0],[0,1750,0,500,1750,0],[0,2050,0,500,2050,0]].forEach((v,i)=>add('Лестница '+(i+1),40,40,2,[v[0],v[1],v[2]],[v[3],v[4],v[5]]))}
+ parts=p; renderAll();
+}
+function init3d(){
+ const el=$('scene'); scene=new THREE.Scene(); camera=new THREE.PerspectiveCamera(45,el.clientWidth/el.clientHeight,.1,10000); camera.position.set(2.5,2.2,3.2);
+ renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); el.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0xffffff,0x42506b,2)); let light=new THREE.DirectionalLight(0xffffff,2);light.position.set(3,5,4);scene.add(light);
+ group=new THREE.Group();scene.add(group); const grid=new THREE.GridHelper(4000,40,0x456080,0x26334c);grid.position.y=-1;scene.add(grid);
+ const resize=()=>{renderer.setSize(el.clientWidth,el.clientHeight,false);camera.aspect=el.clientWidth/el.clientHeight;camera.updateProjectionMatrix()};new ResizeObserver(resize).observe(el);resize();
+ el.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;el.setPointerCapture(e.pointerId)});
+ el.addEventListener('pointermove',e=>{if(!drag)return;rotY+=(e.clientX-lastX)*.009;rotX+=(e.clientY-lastY)*.009;rotX=Math.max(-1.5,Math.min(1.5,rotX));lastX=e.clientX;lastY=e.clientY;});
+ el.addEventListener('pointerup',()=>drag=false);el.addEventListener('pointercancel',()=>drag=false);
+ el.addEventListener('wheel',e=>{zoom=Math.max(.45,Math.min(3,zoom-e.deltaY*.001));},{passive:true});
+ let touchDist=0;el.addEventListener('touchstart',e=>{if(e.touches.length===2)touchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)},{passive:true});
+ el.addEventListener('touchmove',e=>{if(e.touches.length===2){let d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom=Math.max(.45,Math.min(3,zoom*(d/touchDist)));touchDist=d}},{passive:true});
+ animate();
+}
+function animate(){requestAnimationFrame(animate);if(group){group.rotation.set(rotX,rotY,0);camera.position.set(2400/zoom,1800/zoom,3000/zoom);camera.lookAt(0,0,0)}renderer.render(scene,camera)}
+function draw3d(){
+ if(!group)return;while(group.children.length) {let o=group.children.pop();o.geometry?.dispose();if(o.material)o.material.dispose()}
+ if(!parts.length)return;
+ let min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+ parts.forEach(p=>{[p.x1,p.y1,p.z1].forEach((v,i)=>{min[i]=Math.min(min[i],v);max[i]=Math.max(max[i],v)});[p.x2,p.y2,p.z2].forEach((v,i)=>{min[i]=Math.min(min[i],v);max[i]=Math.max(max[i],v)})});
+ const center=min.map((v,i)=>(v+max[i])/2), scale=1.7/Math.max(500,...max.map((v,i)=>v-min[i]));
+ parts.forEach((p,i)=>{let a=new THREE.Vector3((p.x1-center[0])*scale,(p.y1-center[1])*scale,(p.z1-center[2])*scale),b=new THREE.Vector3((p.x2-center[0])*scale,(p.y2-center[1])*scale,(p.z2-center[2])*scale);
+ let d=new THREE.Vector3().subVectors(b,a),len=d.length();if(!len)return;
+ let geom=new THREE.BoxGeometry(Math.max(.018,p.w*scale),Math.max(.018,p.h*scale),len);
+ // box is along z, align with segment direction
+ let mesh=new THREE.Mesh(geom,new THREE.MeshStandardMaterial({color:[0x56c5f5,0x8ce0bb,0xffc76b,0xc0a7ff][i%4],metalness:.55,roughness:.35}));
+ mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),d.normalize());group.add(mesh);
+ });
+}
+function renderParts(){
+ $('partList').innerHTML=parts.map(p=>`<div class="part"><div class="parthead"><span>${esc(p.name)} <small style="color:var(--muted)">#${p.id}</small></span><button class="btn small danger" onclick="removePart(${p.id})">Удалить</button></div><div class="grid">
+ <div class="field"><label>Название</label><input value="${esc(p.name)}" onchange="edit(${p.id},'name',this.value)"></div>
+ <div class="field"><label>Ширина × высота × стенка (мм)</label><div class="row"><input aria-label="Ширина" type="number" value="${p.w}" onchange="edit(${p.id},'w',this.value)"><input aria-label="Высота" type="number" value="${p.h}" onchange="edit(${p.id},'h',this.value)"><input aria-label="Стенка" type="number" value="${p.t}" onchange="edit(${p.id},'t',this.value)"></div></div>
+ ${[['x1','X1'],['y1','Y1'],['z1','Z1'],['x2','X2'],['y2','Y2'],['z2','Z2']].map(([k,l])=>`<div class="field"><label>${l} (мм)</label><input type="number" value="${p[k]}" onchange="edit(${p.id},'${k}',this.value)"></div>`).join('')}
+ </div><div class="hint">Длина: <b>${money(length(p))} мм</b> · Масса: ${money(weight(p))} кг</div></div>`).join('')||'<p class="hint">Деталей пока нет. Добавьте трубу или выберите шаблон.</p>';
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function edit(id,k,v){let p=parts.find(x=>x.id===id);if(!p)return;p[k]=k==='name'?v:Number(v)||0;renderAll()}
+function removePart(id){parts=parts.filter(p=>p.id!==id);renderAll()}
+function addPart(){let p=makePart($('newName').value||'Труба',Math.max(1,num('newW')),Math.max(1,num('newH')),Math.max(.1,num('newT')),[num('newX1'),num('newY1'),num('newZ1')],[num('newX2'),num('newY2'),num('newZ2')]);parts.push(p);renderAll()}
+function renderKpis(){
+ let total=parts.reduce((s,p)=>s+length(p),0),w=parts.reduce((s,p)=>s+weight(p),0);
+ $('kpis').innerHTML=[['Деталей',parts.length],['Суммарная длина',money(total/1000)+' м'],['Расчётный вес',money(w)+' кг'],['Стоимость',money(w*num('price'))]].map(x=>`<div class="kpi"><div class="v">${x[1]}</div><div class="k">${x[0]}</div></div>`).join('');
+ $('estimateSummary').innerHTML=`<div class="kpis"><div class="kpi"><div class="v">${money(w)} кг</div><div class="k">Масса стали</div></div><div class="kpi"><div class="v">${money(w*num('price'))}</div><div class="k">Стоимость металла</div></div><div class="kpi"><div class="v">${money(w*(1+num('waste')/100))} кг</div><div class="k">С запасом ${num('waste')}%</div></div><div class="kpi"><div class="v">${money(w*(1+num('waste')/100)*num('price'))}</div><div class="k">Стоимость с запасом</div></div></div><p class="hint">Оценка массы рассчитывается по площади прямоугольного кольцевого сечения и плотности. Радиусы углов, заглушки, пластины, сварка и покрытия не включены.</p>`;
+}
+function renderCut(){
+ let stock=Math.max(1,num('stock')),kerf=Math.max(0,num('kerf'));let items=parts.map(p=>({name:p.name,id:p.id,len:length(p)})).sort((a,b)=>b.len-a.len),bars=[];
+ items.forEach(it=>{let placed=false;for(let bar of bars){let need=it.len+(bar.items.length?kerf:0);if(bar.used+need<=stock){bar.items.push(it);bar.used+=need;placed=true;break}}if(!placed)bars.push({items:[it],used:it.len})});
+ $('cutResults').innerHTML=bars.length?`<p>${bars.length} хлыст(ов), длина хлыста ${stock} мм. Оценочный остаток: ${money(bars.reduce((s,b)=>s+stock-b.used,0))} мм.</p>`+bars.map((b,i)=>`<div class="part"><b>Хлыст ${i+1}</b> — использовано ${money(b.used)} мм, остаток ${money(stock-b.used)} мм<div class="bar">${b.items.map(it=>`<div class="cut" title="${esc(it.name)}: ${money(it.len)} мм" style="width:${Math.min(100,it.len/stock*100)}%"></div>`).join('')}</div><div class="hint">${b.items.map(it=>`${esc(it.name)}: ${money(it.len)} мм`).join(' · ')}</div></div>`).join(''):'<p class="hint">Добавьте детали, чтобы рассчитать раскрой.</p>';
+}
+function renderAll(){renderParts();renderKpis();draw3d();renderCut()}
+function download(name,blob){let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function exportCSV(){let rows=[['Название','Длина мм','Ширина мм','Высота мм','Стенка мм','Вес кг','X1','Y1','Z1','X2','Y2','Z2'],...parts.map(p=>[p.name,length(p),p.w,p.h,p.t,weight(p),p.x1,p.y1,p.z1,p.x2,p.y2,p.z2])];let csv='\ufeff'+rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';')).join('\r\n');download('TubeCraft3D-spec.csv',new Blob([csv],{type:'text/csv;charset=utf-8'}))}
+function exportPDF(){
+ if(!window.jspdf){alert('Библиотека PDF не загрузилась. Проверьте подключение к интернету.');return}
+ const {jsPDF}=window.jspdf;let doc=new jsPDF({unit:'mm',format:'a4'});doc.setFont('helvetica','bold');doc.setFontSize(19);doc.text('TubeCraft 3D',14,18);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Спецификация деталей (размеры в мм)',14,26);
+ let y=36;doc.setFont('helvetica','bold');doc.text('№',14,y);doc.text('Деталь',22,y);doc.text('L, мм',90,y);doc.text('Профиль, мм',112,y);doc.text('Вес, кг',151,y);doc.text('Цена',177,y);y+=6;doc.setFont('helvetica','normal');
+ parts.forEach((p,i)=>{if(y>275){doc.addPage();y=18}let vals=[String(i+1),p.name.slice(0,28),money(length(p)),`${p.w}x${p.h}x${p.t}`,money(weight(p)),money(weight(p)*num('price'))];[14,22,90,112,151,177].forEach((x,j)=>doc.text(vals[j],x,y));y+=6});
+ y+=7;if(y>260){doc.addPage();y=18}let totalW=parts.reduce((s,p)=>s+weight(p),0);doc.setFont('helvetica','bold');doc.text(`Всего: ${parts.length} деталей; длина ${money(parts.reduce((s,p)=>s+length(p),0)/1000)} м; масса ${money(totalW)} кг; металл ${money(totalW*num('price'))}`,14,y,{maxWidth:180});y+=14;doc.setFont('helvetica','normal');doc.text('Схема расположения: координаты концов каждой детали указаны в CSV-экспорте. PDF — спецификация, не сертифицированный производственный чертёж.',14,y,{maxWidth:180});
+ doc.save('TubeCraft3D-specification.pdf');
+}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));if(b.dataset.tab==='model'&&renderer){setTimeout(()=>{renderer.setSize($('scene').clientWidth,$('scene').clientHeight,false);camera.aspect=$('scene').clientWidth/$('scene').clientHeight;camera.updateProjectionMatrix()},50)}}));
+$('loadPreset').onclick=()=>seed($('preset').value);$('addPart').onclick=addPart;$('resetParts').onclick=()=>{if(confirm('Очистить все детали?')){parts=[];renderAll()}};$('calcCut').onclick=renderCut;$('pdf').onclick=exportPDF;$('csv').onclick=exportCSV;
+['price','density','waste'].forEach(id=>$(id).addEventListener('input',renderAll));['stock','kerf'].forEach(id=>$(id).addEventListener('input',renderCut));
+init3d();seed('frame');
+</script>
+</body></html>
